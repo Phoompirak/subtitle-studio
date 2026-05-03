@@ -78,6 +78,28 @@ const Index = () => {
 
   const seek = (t: number) => { if (videoRef.current) videoRef.current.currentTime = t; };
 
+  const handleAutoAlign = async () => {
+    if (!videoUrl) return toast.error('อัปโหลดวิดีโอก่อน');
+    if (!transcript.trim()) return toast.error('ใส่ transcript ก่อน');
+    setAnalyzing(true);
+    try {
+      const { regions, duration: dur } = await detectVoicedRegions(videoUrl);
+      if (!regions.length) {
+        toast.error('ไม่พบช่วงเสียงพูด – ลองปรับ threshold');
+        return;
+      }
+      const base = buildSegments(transcript, dur, wordsPer);
+      const aligned = alignSegmentsToRegions(base, regions);
+      setSegments(aligned);
+      toast.success(`จัดซับให้ตรงเสียงแล้ว (${regions.length} ช่วงเสียง)`);
+    } catch (e) {
+      console.error(e);
+      toast.error('วิเคราะห์เสียงล้มเหลว');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const exportSrt = () => {
     if (!segments.length) return toast.error('ไม่มีซับไตเติ้ล');
     const blob = new Blob([toSrt(segments)], { type: 'text/plain' });
@@ -199,8 +221,12 @@ const Index = () => {
               <Button onClick={handleGenerate} className="w-full bg-gradient-primary shadow-glow hover:opacity-90">
                 <Sparkles className="h-4 w-4 mr-2" /> Generate Subtitles
               </Button>
+              <Button onClick={handleAutoAlign} disabled={analyzing || !videoUrl} variant="outline" className="w-full">
+                {analyzing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                Auto-align ตามเสียงพูด
+              </Button>
               <p className="text-xs text-muted-foreground italic">
-                * Auto Speech-to-Text (Whisper) ต้องเปิด Lovable Cloud ก่อน — ดู requirement.txt
+                * วิเคราะห์เสียงในเบราว์เซอร์ → จัดซับให้ตกในช่วงที่มีเสียง (ข้ามช่วงเงียบอัตโนมัติ)
               </p>
             </TabsContent>
 
