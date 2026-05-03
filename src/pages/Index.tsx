@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Upload, Download, Sparkles, Play, Pause } from 'lucide-react';
+import { Upload, Download, Sparkles, Play, Pause, Wand2, Loader2 } from 'lucide-react';
 import { Segment, buildSegments, toSrt } from '@/lib/subtitles';
+import { detectVoicedRegions, alignSegmentsToRegions } from '@/lib/audioAnalysis';
 import { SubtitleOverlay, defaultStyle, SubtitleStyle } from '@/components/SubtitleOverlay';
 import { SegmentList } from '@/components/SegmentList';
 import { StylePanel } from '@/components/StylePanel';
@@ -31,6 +32,7 @@ const Index = () => {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [style, setStyle] = useState<SubtitleStyle>(defaultStyle);
   const [ratio, setRatio] = useState<keyof typeof RATIOS>('9:16');
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     const v = videoRef.current; if (!v) return;
@@ -75,6 +77,28 @@ const Index = () => {
   };
 
   const seek = (t: number) => { if (videoRef.current) videoRef.current.currentTime = t; };
+
+  const handleAutoAlign = async () => {
+    if (!videoUrl) return toast.error('อัปโหลดวิดีโอก่อน');
+    if (!transcript.trim()) return toast.error('ใส่ transcript ก่อน');
+    setAnalyzing(true);
+    try {
+      const { regions, duration: dur } = await detectVoicedRegions(videoUrl);
+      if (!regions.length) {
+        toast.error('ไม่พบช่วงเสียงพูด – ลองปรับ threshold');
+        return;
+      }
+      const base = buildSegments(transcript, dur, wordsPer);
+      const aligned = alignSegmentsToRegions(base, regions);
+      setSegments(aligned);
+      toast.success(`จัดซับให้ตรงเสียงแล้ว (${regions.length} ช่วงเสียง)`);
+    } catch (e) {
+      console.error(e);
+      toast.error('วิเคราะห์เสียงล้มเหลว');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const exportSrt = () => {
     if (!segments.length) return toast.error('ไม่มีซับไตเติ้ล');
@@ -197,8 +221,12 @@ const Index = () => {
               <Button onClick={handleGenerate} className="w-full bg-gradient-primary shadow-glow hover:opacity-90">
                 <Sparkles className="h-4 w-4 mr-2" /> Generate Subtitles
               </Button>
+              <Button onClick={handleAutoAlign} disabled={analyzing || !videoUrl} variant="outline" className="w-full">
+                {analyzing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                Auto-align ตามเสียงพูด
+              </Button>
               <p className="text-xs text-muted-foreground italic">
-                * Auto Speech-to-Text (Whisper) ต้องเปิด Lovable Cloud ก่อน — ดู requirement.txt
+                * วิเคราะห์เสียงในเบราว์เซอร์ → จัดซับให้ตกในช่วงที่มีเสียง (ข้ามช่วงเงียบอัตโนมัติ)
               </p>
             </TabsContent>
 
