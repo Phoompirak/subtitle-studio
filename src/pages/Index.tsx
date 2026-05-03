@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,12 @@ import { SubtitleOverlay, defaultStyle, SubtitleStyle } from '@/components/Subti
 import { SegmentList } from '@/components/SegmentList';
 import { StylePanel } from '@/components/StylePanel';
 import { WaveformTimeline } from '@/components/WaveformTimeline';
+import { ModelSelector } from '@/components/ModelSelector';
+import { TranscribeButton } from '@/components/TranscribeButton';
+import { BrowserSTTEngine } from '@/lib/stt/browser-stt';
+import { detectPlatform } from '@/lib/stt/platform';
+import { getModelById } from '@/lib/stt/model-registry';
+import type { STTEngineState, WordTimestamp } from '@/lib/stt/types';
 import { toast } from 'sonner';
 
 const RATIOS = {
@@ -20,6 +26,20 @@ const RATIOS = {
   '16:9': 'aspect-video w-full',
   '4:5': 'aspect-[4/5] max-h-[70vh]',
 } as const;
+
+// Convert word-level timestamps to subtitle segments grouped by N words
+function wordChunksToSegments(chunks: WordTimestamp[], wordsPer: number): Segment[] {
+  const groups: WordTimestamp[][] = [];
+  for (let i = 0; i < chunks.length; i += wordsPer) {
+    groups.push(chunks.slice(i, i + wordsPer));
+  }
+  return groups.map((g, i) => ({
+    id: crypto.randomUUID(),
+    text: g.map(w => w.word).join(' '),
+    start: +g[0].start.toFixed(2),
+    end: +(g[g.length - 1].end).toFixed(2),
+  }));
+}
 
 const Index = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -33,6 +53,14 @@ const Index = () => {
   const [style, setStyle] = useState<SubtitleStyle>(defaultStyle);
   const [ratio, setRatio] = useState<keyof typeof RATIOS>('9:16');
   const [analyzing, setAnalyzing] = useState(false);
+
+  // STT state
+  const sttEngine = useMemo(() => new BrowserSTTEngine(), []);
+  const [sttState, setSttState] = useState<STTEngineState>('idle');
+  const [sttLoadedModel, setSttLoadedModel] = useState<string | null>(null);
+  const [sttLoadProgress, setSttLoadProgress] = useState(0);
+  const platform = useMemo(() => detectPlatform(), []);
+  const sttPlatform = platform === 'tauri' ? 'desktop' as const : platform === 'capacitor' ? 'mobile' as const : 'web' as const;
 
   useEffect(() => {
     const v = videoRef.current; if (!v) return;
@@ -99,6 +127,66 @@ const Index = () => {
       setAnalyzing(false);
     }
   };
+
+  const handleLoadModel = useCallback(async (modelId: string) => {
+    setSttLoadProgress(0);
+    try {
+      await sttEngine.loadModel(modelId, {
+        onProgress: (p) => setSttLoadProgress(p),
+      });
+      setSttState(sttEngine.getState());
+      setSttLoadedModel(modelId);
+      const info = getModelById(modelId);
+      toast.success(`โหลดโมเดล ${info?.name ?? modelId} แล้ว`);
+    } catch (e) {
+      console.error(e);
+      setSttState('error');
+      toast.error('โหลดโมเดลล้มเหลว — ลองโมเดลเล็กกว่า');
+    }
+  }, [sttEngine]);
+
+  const handleUnloadModel = useCallback(async () => {
+    await sttEngine.unloadModel();
+    setSttState('idle');
+    setSttLoadedModel(null);
+    setSttLoadProgress(0);
+    toast('ถอนโหลดโมเดลแล้ว');
+  }, [sttEngine]);
+
+  const handleTranscribe = useCallback(async () => {
+    if (!videoUrl || !sttEngine.isModelLoaded()) return;
+    setSttState('transcribing');
+    try {
+      // Fetch video as blob
+      const res = await fetch(videoUrl);
+      const blob = await res.blob();
+      const result = await sttEngine.transcribe(blob, {
+        language: 'th',
+        wordTimestamps: true,
+      });
+      setSttState(sttEngine.getState());
+
+      // Fill transcript
+      if (result.text) {
+        setTranscript(result.text);
+      }
+
+      // Build segments from word timestamps if available
+      if (result.chunks && result.chunks.length > 0) {
+        const segs = wordChunksToSegments(result.chunks, wordsPer);
+        setSegments(segs);
+        toast.success(`ถอดเสียงสำเร็จ (${result.chunks.length} คำ)`);
+      } else if (result.text) {
+        // Fallback: use buildSegments with duration
+        setSegments(buildSegments(result.text, duration, wordsPer));
+        toast.success('ถอดเสียงสำเร็จ (ไม่มี word timestamps)');
+      }
+    } catch (e) {
+      console.error(e);
+      setSttState('error');
+      toast.error('ถอดเสียงล้มเหลว');
+    }
+  }, [videoUrl, sttEngine, wordsPer, duration]);
 
   const exportSrt = () => {
     if (!segments.length) return toast.error('ไม่มีซับไตเติ้ล');
@@ -192,8 +280,9 @@ const Index = () => {
         {/* RIGHT: settings */}
         <Card className="p-4 overflow-y-auto bg-gradient-surface">
           <Tabs defaultValue="setup">
-            <TabsList className="grid grid-cols-2 w-full">
+            <TabsList className="grid grid-cols-3 w-full">
               <TabsTrigger value="setup">Setup</TabsTrigger>
+              <TabsTrigger value="stt">STT</TabsTrigger>
               <TabsTrigger value="style">Style</TabsTrigger>
             </TabsList>
 
@@ -227,6 +316,25 @@ const Index = () => {
               </Button>
               <p className="text-xs text-muted-foreground italic">
                 * วิเคราะห์เสียงในเบราว์เซอร์ → จัดซับให้ตกในช่วงที่มีเสียง (ข้ามช่วงเงียบอัตโนมัติ)
+              </p>
+            </TabsContent>
+
+            <TabsContent value="stt" className="space-y-4 mt-4">
+              <ModelSelector
+                platform={sttPlatform}
+                loadedModelId={sttLoadedModel}
+                engineState={sttState}
+                loadProgress={sttLoadProgress}
+                onSelectModel={handleLoadModel}
+                onUnloadModel={handleUnloadModel}
+              />
+              <TranscribeButton
+                engineState={sttState}
+                hasVideo={!!videoUrl}
+                onTranscribe={handleTranscribe}
+              />
+              <p className="text-xs text-muted-foreground italic">
+                * โมเดลทำงานบนเครื่องคุณ — ไม่ส่งเสียงไปเซิร์ฟเวอร์
               </p>
             </TabsContent>
 

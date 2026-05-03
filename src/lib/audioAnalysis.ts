@@ -16,9 +16,8 @@ export async function detectVoicedRegions(
 
   const res = await fetch(url);
   const buf = await res.arrayBuffer();
-  const Ctx: typeof AudioContext =
-    (window.AudioContext || (window as any).webkitAudioContext);
-  const ctx = new Ctx();
+  const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new AudioCtx();
   const audio = await ctx.decodeAudioData(buf.slice(0));
   const duration = audio.duration;
 

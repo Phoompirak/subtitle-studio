@@ -1,0 +1,7 @@
+{
+  "tools": {
+    "trusted": [
+      "run_shell_command(*)"
+    ]
+  }
+}

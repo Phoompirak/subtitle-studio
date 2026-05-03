@@ -14,19 +14,22 @@
 
 ## ❌ ฟังก์ชันที่ยังทำให้ไม่ได้ (ต้องมี backend / บริการภายนอก)
 
-### 1. Speech-to-Text อัตโนมัติ (ภาษาไทย)
-- ต้องเรียก OpenAI Whisper API หรือ AssemblyAI ผ่าน edge function
-- ต้องการ Lovable Cloud + API key → ยังไม่ได้เปิดในโปรเจกต์นี้
-- ปัจจุบันให้ผู้ใช้พิมพ์/วาง transcript เองแทน
+### 1. Speech-to-Text อัตโนมัติ (ภาษาไทย) ✅ (Web เสร็จแล้ว, Desktop/Mobile รอต่อ)
+- ✅ Web: ใช้ @huggingface/transformers รัน Whisper ONNX ในเบราว์เซอร์ (WebGPU/WASM)
+- ✅ เลือกโมเดลได้หลายขนาด: tiny (75MB) → large-v3 (3GB) + turbo (800MB)
+- ✅ ถอดเสียงจากวิดีโอ → ได้ word timestamps → สร้างซับอัตโนมัติ
+- ✅ รันบนเครื่องผู้ใช้ ไม่ส่งเสียงไปเซิร์ฟเวอร์
+- 🔜 Desktop: Tauri + whisper.cpp native (เร็วกว่า)
+- 🔜 Mobile: Capacitor + whisper.cpp native (เลือกโมเดลเล็กได้)
 
 ### 2. Burn-in Video Rendering (export เป็น .mp4 พร้อมซับฝัง)
 - ต้องใช้ FFmpeg (server-side) หรือ Remotion Lambda
 - เบราว์เซอร์ทำได้ผ่าน ffmpeg.wasm แต่ช้ามาก, จำกัดขนาดไฟล์, กิน RAM หนัก
 - แนะนำทำเป็น edge function + cloud rendering
 
-### 3. Word-level Timestamp ที่แม่นยำ
-- ต้องได้จาก Whisper (word_timestamps=true) เท่านั้น
-- ตอนนี้ใช้วิธีกระจายเวลาแบบ linear ตามจำนวนคำ ซึ่งไม่ตรงเสียงจริง 100%
+### 3. Word-level Timestamp ที่แม่นยำ ✅ (ผ่าน STT แล้ว)
+- ✅ ได้จาก Whisper (word_timestamps=true) เมื่อใช้ฟังก์ชัน STT
+- ถ้าพิมพ์ transcript เอง ยังใช้วิธีกระจายเวลาแบบ linear ตามจำนวนคำ
 
 ### 4. Cloud Storage / Project Management
 - บันทึกโปรเจกต์, รายการวิดีโอ, สถานะการประมวลผล
@@ -41,11 +44,13 @@
 - ต้องดึง audio waveform (wavesurfer.js) + custom drag interactions ซับซ้อน
 - เวอร์ชันนี้แก้ timing ผ่าน input number แทน
 
-### 7. Karaoke แบบ word-by-word ตรงเสียงจริง
-- ทำ effect highlight ได้ แต่ sync ระดับคำต้องอาศัย word timestamps จากข้อ 3
+### 7. Karaoke แบบ word-by-word ตรงเสียงจริง ✅ (เมื่อใช้ STT)
+- ✅ ทำ effect highlight ได้ + sync ระดับคำได้เมื่อใช้ word timestamps จาก STT
+- ถ้าพิมพ์ transcript เอง ยัง sync ไม่ตรงเสียง 100%
 
 ## 🔜 ขั้นถัดไปที่แนะนำ
-1. เปิด Lovable Cloud → เพิ่ม auth + เก็บโปรเจกต์
-2. สร้าง edge function `/transcribe` เรียก Whisper API
-3. เพิ่ม wavesurfer.js สำหรับ waveform timeline
-4. (ขั้นสูง) ทำ render service แยกด้วย Remotion Lambda
+1. ✅ ทำ STT ในเบราว์เซอร์ด้วย @huggingface/transformers (เสร็จแล้ว)
+2. แปลงเป็น Desktop app ด้วย Tauri + whisper.cpp native
+3. แปลงเป็น Mobile app ด้วย Capacitor + whisper.cpp native
+4. เปิด Lovable Cloud → เพิ่ม auth + เก็บโปรเจกต์
+5. (ขั้นสูง) ทำ render service แยกด้วย Remotion Lambda
