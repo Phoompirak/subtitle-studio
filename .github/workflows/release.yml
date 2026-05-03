@@ -8,6 +8,7 @@ jobs:
   build-tauri:
     permissions:
       contents: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +35,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'Subtitle Studio v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: 'Automatic release of Subtitle Studio.'
           releaseDraft: true
           prerelease: false
           args: --build-command "npm run build"
