@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Upload, Download, Sparkles, Play, Pause } from 'lucide-react';
+import { Upload, Download, Sparkles, Play, Pause, Wand2, Loader2 } from 'lucide-react';
 import { Segment, buildSegments, toSrt } from '@/lib/subtitles';
+import { detectVoicedRegions, alignSegmentsToRegions } from '@/lib/audioAnalysis';
 import { SubtitleOverlay, defaultStyle, SubtitleStyle } from '@/components/SubtitleOverlay';
 import { SegmentList } from '@/components/SegmentList';
 import { StylePanel } from '@/components/StylePanel';
@@ -31,6 +32,7 @@ const Index = () => {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [style, setStyle] = useState<SubtitleStyle>(defaultStyle);
   const [ratio, setRatio] = useState<keyof typeof RATIOS>('9:16');
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     const v = videoRef.current; if (!v) return;
