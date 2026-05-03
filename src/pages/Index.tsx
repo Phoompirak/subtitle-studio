@@ -10,6 +10,7 @@ import { Segment, buildSegments, toSrt } from '@/lib/subtitles';
 import { SubtitleOverlay, defaultStyle, SubtitleStyle } from '@/components/SubtitleOverlay';
 import { SegmentList } from '@/components/SegmentList';
 import { StylePanel } from '@/components/StylePanel';
+import { WaveformTimeline } from '@/components/WaveformTimeline';
 import { toast } from 'sonner';
 
 const RATIOS = {
@@ -148,6 +149,18 @@ const Index = () => {
                   </Button>
                 ))}
               </div>
+            </Card>
+          )}
+
+          {videoUrl && (
+            <Card className="p-3">
+              <WaveformTimeline
+                videoUrl={videoUrl}
+                segments={segments}
+                currentTime={currentTime}
+                onChange={setSegments}
+                onSeek={seek}
+              />
             </Card>
           )}
         </div>
