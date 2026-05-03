@@ -1,0 +1,51 @@
+# Klipr-Style Subtitle App – Requirements & Pending Features
+
+## ✅ ที่ทำได้แล้วในเวอร์ชันนี้ (Frontend-only, Vite + React)
+- อัปโหลดวิดีโอจากเครื่อง (local blob URL) แล้วเล่นบน <video>
+- ใส่/วาง transcript เองพร้อมระบุระยะเวลารวม → ระบบกระจาย timestamp อัตโนมัติ
+- ตั้งค่าจำนวนคำต่อบรรทัดซับไตเติ้ล (1–6 คำ)
+- แก้ไขข้อความ, เวลาเริ่ม/จบของแต่ละ segment ได้
+- ลบ / เพิ่ม segment ใหม่ได้
+- เลือกสไตล์ฟอนต์ (Inter, Bebas Neue, Anton, mono ฯลฯ) ขนาด สี เงา
+- เลือกอนิเมชั่นซับ: fade, pop, slide-up, typewriter, karaoke-highlight
+- เลือกอัตราส่วนวิดีโอ preview: 9:16 / 1:1 / 16:9 / 4:5
+- Preview ซับไตเติ้ลซ้อนทับบนวิดีโอแบบ real-time ตามเวลาเล่นจริง
+- Export ไฟล์ .srt ของซับไตเติ้ลที่แก้ไขแล้ว
+
+## ❌ ฟังก์ชันที่ยังทำให้ไม่ได้ (ต้องมี backend / บริการภายนอก)
+
+### 1. Speech-to-Text อัตโนมัติ (ภาษาไทย)
+- ต้องเรียก OpenAI Whisper API หรือ AssemblyAI ผ่าน edge function
+- ต้องการ Lovable Cloud + API key → ยังไม่ได้เปิดในโปรเจกต์นี้
+- ปัจจุบันให้ผู้ใช้พิมพ์/วาง transcript เองแทน
+
+### 2. Burn-in Video Rendering (export เป็น .mp4 พร้อมซับฝัง)
+- ต้องใช้ FFmpeg (server-side) หรือ Remotion Lambda
+- เบราว์เซอร์ทำได้ผ่าน ffmpeg.wasm แต่ช้ามาก, จำกัดขนาดไฟล์, กิน RAM หนัก
+- แนะนำทำเป็น edge function + cloud rendering
+
+### 3. Word-level Timestamp ที่แม่นยำ
+- ต้องได้จาก Whisper (word_timestamps=true) เท่านั้น
+- ตอนนี้ใช้วิธีกระจายเวลาแบบ linear ตามจำนวนคำ ซึ่งไม่ตรงเสียงจริง 100%
+
+### 4. Cloud Storage / Project Management
+- บันทึกโปรเจกต์, รายการวิดีโอ, สถานะการประมวลผล
+- ต้องใช้ Lovable Cloud (Supabase) – database + storage bucket
+- ปัจจุบันเป็น session เดียว, refresh แล้วหาย
+
+### 5. Authentication & Credit System
+- Login, จัดการเครดิต, เชื่อม Stripe
+- ต้องใช้ Lovable Cloud auth + Stripe edge function
+
+### 6. Timeline Editor แบบลากปรับ waveform
+- ต้องดึง audio waveform (wavesurfer.js) + custom drag interactions ซับซ้อน
+- เวอร์ชันนี้แก้ timing ผ่าน input number แทน
+
+### 7. Karaoke แบบ word-by-word ตรงเสียงจริง
+- ทำ effect highlight ได้ แต่ sync ระดับคำต้องอาศัย word timestamps จากข้อ 3
+
+## 🔜 ขั้นถัดไปที่แนะนำ
+1. เปิด Lovable Cloud → เพิ่ม auth + เก็บโปรเจกต์
+2. สร้าง edge function `/transcribe` เรียก Whisper API
+3. เพิ่ม wavesurfer.js สำหรับ waveform timeline
+4. (ขั้นสูง) ทำ render service แยกด้วย Remotion Lambda
